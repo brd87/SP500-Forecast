@@ -15,7 +15,7 @@ class DataProcessing:
         self.raw_data = data_df
         print(self.raw_data)
         self.preprocessed, self.trainready = self._calculate_features()
-        self._save_features()
+        self.save_path = self._save_features()
 
     def _calculate_features(self):
 
@@ -63,7 +63,7 @@ class DataProcessing:
 
         gspc = self.raw_data["^GSPC"].copy()
         gspc_close = gspc[price_col]
-        future_ret_5d = gspc_close.shift(-5) / gspc_close - 1
+        future_ret_5d = gspc_close.shift(-5) / gspc_close - 1 #might redifine in the future
 
         #noise reduction
         thr = 0.002
@@ -101,6 +101,6 @@ class DataProcessing:
 
         self.preprocessed.to_csv(save_preprocessed_path)
         self.trainready.to_csv(save_trainready_path)
-        # return save_path
+        return save_path
 
-data = DataProcessing(csv_path="D:/projectsGYM/SP500FC/SP500-Forecast/data/raw/tick10_1998-12-22_2026-06-14.csv")
+#data = DataProcessing(csv_path="D:/projectsGYM/SP500FC/SP500-Forecast/data/raw/tick10_1998-12-22_2026-06-14.csv")

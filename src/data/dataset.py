@@ -20,10 +20,11 @@ class SP500Dataset(Dataset):
         ]
 
         self.target_col = target_col
+        self.input_size = len(self.feature_cols)
         self.lookback = lookback
         self.valid_length = len(df) - lookback #minus becasue the first sample needs some space
 
-        self.X = df[self.feature_cols].values.astype(np.float32) #arg
+        self.x = df[self.feature_cols].values.astype(np.float32) #arg
         self.y = df[target_col].values.astype(np.float32) #res
         #"astype is just to make sure pytorch aint gonna blow up" ~ William Shakespeare
 
@@ -36,10 +37,11 @@ class SP500Dataset(Dataset):
         start = idx
         end = idx + self.lookback
 
-        x = self.X[start:end]
-        y = self.y[end - 1]
+        x = self.x[start:end]
+        y = self.y[end - 1] #no it's not a data leak (so far)
 
         return (torch.tensor(x), torch.tensor(y))
+        #return (torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32))
     
 #sp500 = SP500Dataset(csv_path="D:/projectsGYM/SP500FC/SP500-Forecast/data/trainready/features10_1999-10-07_2026-06-05_id20260614134039.csv");
 #print(sp500.__getitem__(0))

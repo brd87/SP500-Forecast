@@ -41,6 +41,7 @@ class RawData:
 
         path = fold_path / csv_file_name
         self.data.to_csv(path, index=True)
+        self.save_path = path 
 
         # print(path)
         # print(os.path.dirname(os.path.dirname(__file__)))

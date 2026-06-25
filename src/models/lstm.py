@@ -1,0 +1,58 @@
+import os
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+# input_size - How many features exist per day
+# batch_size - How many samples are processed simultaneously
+# hidden_size - How many memory neurons to remember patterns
+
+
+#device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+#print(f"Using {device} device")
+
+class LSTMModel(nn.Module):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int = 64,
+        num_layers: int = 2,
+        dropout: float = 0.2,
+        bidirectional: bool = False,
+    ):
+        super().__init__()
+
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0.0,
+            bidirectional=bidirectional,
+        )
+
+        direction_factor = 2 if bidirectional else 1
+
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size * direction_factor, 64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, 1)  # binary classification
+        )
+
+    def forward(self, x): # x.shape (batch_size, seq_len, input_size)
+
+        _, (h_n, _) = self.lstm(x)
+
+        # Use last layer hidden state
+        if self.lstm.bidirectional:
+            # forward + backward concatenation
+            h_forward = h_n[-2]
+            h_backward = h_n[-1]
+            h_last = torch.cat((h_forward, h_backward), dim=1)
+        else:
+            h_last = h_n[-1]
+
+        logits = self.fc(h_last)
+        return logits # (batch_size, 1)

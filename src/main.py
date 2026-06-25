@@ -40,7 +40,7 @@ writer = SummaryWriter("runs/exp1") # tensorboard --logdir=runs
 rawdata = RawData()
 dataprocessing = DataProcessing(data_df=rawdata.data)
 #dataprocessing = DataProcessing(csv_path=rawdata.save_path)
-dataset = SP500Dataset(dataprocessing.save_path)
+dataset = SP500Dataset(dataprocessing.save_trainready_path)
 
 input_size = dataset.input_size
 

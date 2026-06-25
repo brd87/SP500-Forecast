@@ -15,7 +15,7 @@ class DataProcessing:
         self.raw_data = data_df
         print(self.raw_data)
         self.preprocessed, self.trainready = self._calculate_features()
-        self.save_path = self._save_features()
+        self.save_preprocessed_path, self.save_trainready_path = self._save_features()
 
     def _calculate_features(self):
 
@@ -101,6 +101,6 @@ class DataProcessing:
 
         self.preprocessed.to_csv(save_preprocessed_path)
         self.trainready.to_csv(save_trainready_path)
-        return save_path
+        return save_preprocessed_path, save_trainready_path
 
 #data = DataProcessing(csv_path="D:/projectsGYM/SP500FC/SP500-Forecast/data/raw/tick10_1998-12-22_2026-06-14.csv")

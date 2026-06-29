@@ -8,136 +8,81 @@ from data.processing import DataProcessing
 from src.models.lstm import LSTMModel
 from torch.utils.tensorboard import SummaryWriter
 
-def load_checkpoint(path, model, optimizer, device):
-    checkpoint = torch.load(path, map_location=device)
+import config
+import evaluate
+import checkpoint
+import train
 
-    model.load_state_dict(checkpoint["model_state"])
+def main():
+    print("START")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Device:", device)
 
-    optimizer.load_state_dict(checkpoint["optimizer_state"])
-    epoch = checkpoint.get("epoch", -1)
-    loss = checkpoint.get("train_loss", None)
+    # ----------------- DATA -----------------
+    rawdata = RawData()
+    dataprocessing = DataProcessing(data_df=rawdata.data)
+    #dataprocessing = DataProcessing(csv_path=rawdata.save_path)
+    dataset = SP500Dataset(dataprocessing.save_trainready_path)
 
-    print(f"Loaded checkpoint from epoch {epoch}, loss={loss}")
+    input_size = dataset.input_size
 
-    return model, optimizer, epoch
+    val_size = int(len(dataset) * config.VAL_SPLIT)
+    train_size = len(dataset) - val_size
 
-# ----------------- CONFIG -----------------
-CKPT_DIR = "checkpoints"
-BATCH_SIZE = 64
-EPOCHS = 10
-LR = 1e-3
-VAL_SPLIT = 0.2
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True)
+    eval_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE, shuffle=False)
 
-print("START")
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("Device:", device)
+    # ----------------- MODEL -----------------
+    model = LSTMModel(input_size=input_size).to(device)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.LR)
 
-os.makedirs(CKPT_DIR, exist_ok=True)
+    # ----------------- CHECKPOINT PREP -----------------
+    writer = SummaryWriter(f"runs/{model.name}/exp_{config.EXPERIMENT_NAME}") # tensorboard --logdir=runs
+    sample_x, _ = next(iter(train_loader))
+    writer.add_graph(model, sample_x.to(device).float())
 
-writer = SummaryWriter("runs/exp1") # tensorboard --logdir=runs
+    ckpt_dir_path = f"checkpoints/{model.name}"
+    os.makedirs(ckpt_dir_path, exist_ok=True)
+    ckpt_path = os.path.join(ckpt_dir_path, "last.pt")
+    best_ckpt_path = os.path.join(ckpt_dir_path, "best.pt")
+    best_loss = float("inf")
+    start_epoch = 0
+    if os.path.exists(ckpt_path):
+        model, optimizer, last_epoch = checkpoint.load(ckpt_path, model, optimizer, device)
+        start_epoch = last_epoch + 1
 
-# ----------------- DATA -----------------
-rawdata = RawData()
-dataprocessing = DataProcessing(data_df=rawdata.data)
-#dataprocessing = DataProcessing(csv_path=rawdata.save_path)
-dataset = SP500Dataset(dataprocessing.save_trainready_path)
+    # ----------------- THE LOOP -----------------
+    for epoch in range(start_epoch, config.EPOCHS):
 
-input_size = dataset.input_size
+        train_avg_loss = train.train_one_epoch(model, train_loader, optimizer, criterion, device)
 
-val_size = int(len(dataset) * VAL_SPLIT)
-train_size = len(dataset) - val_size
+        eval_avg_loss = evaluate.evaluate_one_epoch(model, eval_loader, criterion, device)
 
-train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-eval_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+        #save
+        checkpoint.save(ckpt_path, model, epoch, train_avg_loss, input_size, optimizer)
+        if train_avg_loss < best_loss:
+            checkpoint.save(best_ckpt_path, model, epoch, train_avg_loss, input_size, optimizer)
 
-# ----------------- MODEL -----------------
-model = LSTMModel(input_size=input_size).to(device)
+        #log
+        writer.add_scalar("LOSS/TRAIN", train_avg_loss, epoch)
+        writer.add_scalar("LOSS/VAL", eval_avg_loss, epoch)
 
-criterion = nn.BCEWithLogitsLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+        print(f"Epoch {epoch+1}/{config.EPOCHS} | avg_train_loss: {train_avg_loss:.6f} | avg_val_loss: {eval_avg_loss:.6f}")
+    writer.close()
 
-sample_x, _ = next(iter(train_loader))
-writer.add_graph(model, sample_x.to(device).float())
-
-# ----------------- CHECKPOINT PREP -----------------
-ckpt_path = os.path.join(CKPT_DIR, "last.pt")
-best_ckpt_path = os.path.join(CKPT_DIR, "best.pt")
-best_loss = float("inf")
-start_epoch = 0
-if os.path.exists(ckpt_path):
-    model, optimizer, last_epoch = load_checkpoint(ckpt_path, model, optimizer, device)
-    start_epoch = last_epoch + 1
-
-# ----------------- THE LOOP -----------------
-for epoch in range(start_epoch, EPOCHS):
-    model.train()
-    train_loss = 0.0
-
-    for x, y in train_loader:
-        x = x.to(device).float()
-        y = y.to(device).float().unsqueeze(1)
+    # ----------------- EVAL -----------------
+    model.eval()
+    with torch.no_grad():
+        x, y = next(iter(eval_loader))
+        x = x.float().to(device)
 
         logits = model(x)
-        loss = criterion(logits, y)
+        prob = torch.sigmoid(logits)
+        preds = (prob > 0.5).float()
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    print("Sample preds:", preds[:10].cpu().numpy())
 
-        train_loss += loss.item()
-
-    train_avg_loss = train_loss / len(train_loader)
-
-    #save
-    torch.save({
-        "epoch": epoch,
-        "model_state": model.state_dict(),
-        "optimizer_state": optimizer.state_dict(),
-        "train_loss": train_loss,
-        "input_size": input_size
-    }, ckpt_path)
-    print(f"Saved checkpoint: {ckpt_path}")
-
-    if train_loss < best_loss:
-        best_loss = train_loss
-        torch.save({
-            "epoch": epoch,
-            "model_state": model.state_dict(),
-            "optimizer_state": optimizer.state_dict(),
-            "train_loss": train_loss
-        }, best_ckpt_path)
-
-    #evaluation
-    model.eval()
-    eval_loss = 0.0
-
-    with torch.no_grad():
-        for x, y in eval_loader:
-            x = x.to(device).float()
-            y = y.to(device).float().unsqueeze(1)
-
-            logits = model(x)
-            loss = criterion(logits, y)
-            eval_loss += loss.item()
-
-    eval_avg_loss = eval_loss / len(eval_loader)
-
-    #log
-    writer.add_scalar("Loss/train", train_avg_loss, epoch)
-    writer.add_scalar("Loss/val", eval_loss, epoch)
-
-    print(f"Epoch {epoch+1}/{EPOCHS} | train_loss: {train_loss:.6f} | val_loss: {eval_loss:.6f}")
-writer.close()
-
-# ----------------- EVAL -----------------
-model.eval()
-with torch.no_grad():
-    x, y = next(iter(eval_loader))
-    x = x.float().to(device)
-
-    logits = model(x)
-    prob = torch.sigmoid(logits)
-    preds = (prob > 0.5).float()
-
-print("Sample preds:", preds[:10].cpu().numpy())
+if __name__ == "__main__":
+    main()

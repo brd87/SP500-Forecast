@@ -5,7 +5,7 @@ from torch import nn
 # batch_size - How many samples are processed simultaneously
 # hidden_size - How many memory neurons to remember patterns
 
-class LSTMModel(nn.Module):
+class RNNModel(nn.Module):
     def __init__(
         self,
         input_size: int,
@@ -15,14 +15,15 @@ class LSTMModel(nn.Module):
         bidirectional: bool = True,
     ):
         super().__init__()
-        self.name = "lstm"
+        self.name = "rnn"
         self.input_size = input_size
         
 
-        self.lstm = nn.LSTM(
+        self.rnn = nn.RNN(
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
+            nonlinearity='tanh',
             batch_first=True,
             dropout=dropout if num_layers > 1 else 0.0,
             bidirectional=bidirectional,
@@ -39,10 +40,10 @@ class LSTMModel(nn.Module):
 
     def forward(self, x): # x.shape (batch_size, seq_len, input_size)
 
-        _, h_n = self.lstm(x)
+        _, (h_n, _) = self.rnn(x)
 
         # Use last layer hidden state
-        if self.lstm.bidirectional:
+        if self.rnn.bidirectional:
             # forward + backward concatenation
             h_forward = h_n[-2]
             h_backward = h_n[-1]

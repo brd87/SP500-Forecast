@@ -39,7 +39,7 @@ class LSTMModel(nn.Module):
 
     def forward(self, x): # x.shape (batch_size, seq_len, input_size)
 
-        _, h_n = self.lstm(x)
+        _, (h_n, _) = self.lstm(x)
 
         # Use last layer hidden state
         if self.lstm.bidirectional:

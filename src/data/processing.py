@@ -13,7 +13,7 @@ class DataProcessing:
                 raise Exception("ERROR : 'data_path' is of type None or incorrect")
 
         self.raw_data = data_df
-        print(self.raw_data)
+        #print(self.raw_data)
         self.preprocessed, self.trainready = self._calculate_features()
         self.save_preprocessed_path, self.save_trainready_path = self._save_features()
 
@@ -73,7 +73,7 @@ class DataProcessing:
         # preprocessed["gspc_future_ret_5d"] = future_ret_5d
         preprocessed["gspc_target_up_5d"] = target
 
-        trainready = preprocessed.dropna()#.reset_index(drop=True)
+        trainready = preprocessed.dropna().sort_index()
 
         return preprocessed, trainready
 

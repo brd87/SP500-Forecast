@@ -1,6 +1,8 @@
 from torch import nn
+import torch
+from torch.utils.data import DataLoader
 
-def train_one_epoch(model:nn.Module, train_loader, optimizer, criterion, device):
+def one_epoch(model:nn.Module, train_loader:DataLoader, optimizer, criterion, device:torch.device):
     model.train()
     train_loss = 0.0
 

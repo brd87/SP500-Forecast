@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 def load(path, model:nn.Module, optimizer, device):
-    checkpoint = torch.load(path, map_location=device)
+    checkpoint = torch.load(path, map_location=device, weights_only=False)
 
     model.load_state_dict(checkpoint["model_state"])
 
@@ -22,4 +22,4 @@ def save(ckpt_path, model:nn.Model, epoch, avg_loss, input_size, optimizer):
         "avg_loss": avg_loss,
         "input_size": input_size
     }, ckpt_path)
-    print(f"Saved checkpoint: {ckpt_path}")
+    #print(f"Saved checkpoint: {ckpt_path}")

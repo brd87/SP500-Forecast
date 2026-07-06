@@ -39,7 +39,7 @@ class RNNModel(nn.Module):
 
     def forward(self, x): # x.shape (batch_size, seq_len, input_size)
 
-        _, (h_n, _) = self.gru(x)
+        _, h_n = self.gru(x)
 
         # Use last layer hidden state
         if self.gru.bidirectional:

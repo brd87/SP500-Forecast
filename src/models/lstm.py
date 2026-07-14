@@ -15,7 +15,7 @@ class LSTMModel(nn.Module):
         bidirectional: bool = True,
     ):
         super().__init__()
-        self.name = "lstm"
+        self.nameid = "lstm"
         self.input_size = input_size
         
 

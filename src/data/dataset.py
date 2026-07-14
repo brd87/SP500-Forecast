@@ -27,8 +27,8 @@ class SP500Dataset(Dataset):
         #"astype is just to make sure pytorch aint gonna blow up" ~ William Shakespeare
         self.indices = np.arange(self.lookback - 1, len(self.x))
 
-        self.scaler = StandardScaler()
-        self.x = self.scaler.fit_transform(self.x)
+        # self.scaler = StandardScaler()
+        # self.x = self.scaler.fit_transform(self.x)
 
     def __len__(self):
 
@@ -36,11 +36,15 @@ class SP500Dataset(Dataset):
 
     def __getitem__(self, idx): # the first sample will be +60days
 
-        prediction = self.indices[idx]
-        end_idx = prediction+1
+        prediction_day = self.indices[idx]
+        end_idx = prediction_day+1
 
         x = self.x[end_idx - self.lookback : end_idx]
-        y = self.y[prediction]
+        y = self.y[prediction_day]
 
         return (torch.tensor(x), torch.tensor(y))
 
+# dataset = SP500Dataset("D:/projectsGYM/SP500FC/SP500-Forecast/data/trainready/features10_1999-10-07_2026-06-26_id20260707142125.csv")
+# print("here we go")
+# print(np.unique(dataset.y, return_counts=True))
+# print("Positive ratio:", np.nanmean(dataset.y))

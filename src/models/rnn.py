@@ -15,7 +15,7 @@ class RNNModel(nn.Module):
         bidirectional: bool = True,
     ):
         super().__init__()
-        self.name = "rnn"
+        self.nameid = "rnn"
         self.input_size = input_size
         
 

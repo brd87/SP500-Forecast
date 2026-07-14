@@ -5,7 +5,7 @@ from torch import nn
 # batch_size - How many samples are processed simultaneously
 # hidden_size - How many memory neurons to remember patterns
 
-class RNNModel(nn.Module):
+class GRUModel(nn.Module):
     def __init__(
         self,
         input_size: int,
@@ -15,7 +15,7 @@ class RNNModel(nn.Module):
         bidirectional: bool = True,
     ):
         super().__init__()
-        self.name = "gru"
+        self.nameid = "gru"
         self.input_size = input_size
         
 

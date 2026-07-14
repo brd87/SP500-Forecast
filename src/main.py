@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from sklearn.metrics import roc_auc_score
 import torch
 from torch import nn
@@ -6,6 +7,8 @@ from data.dataset import SP500Dataset
 from data.download import RawData
 from data.processing import DataProcessing
 from models.lstm import LSTMModel
+from models.rnn import RNNModel
+from models.gru import GRUModel 
 from torch.utils.tensorboard import SummaryWriter
 
 import config
@@ -20,39 +23,43 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
+
     # ----------------- DATA -----------------
     rawdata = RawData()
     dataprocessing = DataProcessing(data_df=rawdata.data)
     #dataprocessing = DataProcessing(csv_path=rawdata.save_path)
-    dataset = SP500Dataset(dataprocessing.save_trainready_path)
-
+    #dataprocessing = DataProcessing(csv_path="D:/projectsGYM/SP500FC/SP500-Forecast/data/raw/tick10_1998-12-22_2026-07-07_id20260707142125.csv")
+    dataset = SP500Dataset(dataprocessing.save_dsready_path)
+    #dataset = SP500Dataset("D:/projectsGYM/SP500FC/SP500-Forecast/data/dsready/features10_1999-10-07_2026-06-26_id20260707142125.csv")
+    
+    print(f"SIZES | preprocessed: {len(dataprocessing.preprocessed)} , trainready: {len(dataprocessing.dsready)}")
+    print("Class balance")
+    print(np.unique(dataset.y, return_counts=True))
+    print("Positive ratio:", np.nanmean(dataset.y))
+    
     input_size = dataset.input_size
 
-    train_loader, val_loader, test_loader = dataset_split.subset(dataset, config.TRAIN_RATIO, config.VAL_RATIO, config.BATCH_SIZE)
-
+    
     # ----------------- MODEL -----------------
-    model = LSTMModel(input_size=input_size).to(device)
+    # model = LSTMModel(input_size=input_size).to(device)
+    # model = RNNModel(input_size=input_size).to(device)
+    model = GRUModel(input_size=input_size).to(device)
+
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.LR)
 
-    # ----------------- CHECKPOINT PREP -----------------
+
+    # ----------------- LOADERS & CHECKPOINT PREP -----------------
+    ckpt_path, best_ckpt_path, scaler_path, best_valid_avg_loss, start_epoch, model, optimizer = checkpoint.last_best(
+        model.nameid, input_size, device
+        )
+
+    train_loader, val_loader, test_loader = dataset_split.subset(dataset, scaler_path)
+
     writer = SummaryWriter(f"runs/{model.name}/exp_{config.EXPERIMENT_NAME}") # tensorboard --logdir=runs
-    
     sample_x, _ = next(iter(train_loader))
     writer.add_graph(model, sample_x.to(device).float())
 
-    ckpt_dir_path = f"checkpoints/{model.name}"
-    os.makedirs(ckpt_dir_path, exist_ok=True)
-
-    ckpt_path = os.path.join(ckpt_dir_path, "last.pt")
-    best_ckpt_path = os.path.join(ckpt_dir_path, "best.pt")
-
-    best_valid_avg_loss = float("inf")
-    start_epoch = 0
-
-    # if os.path.exists(ckpt_path):
-    #     model, optimizer, last_epoch = checkpoint.load(ckpt_path, model, optimizer, device)
-    #     start_epoch = last_epoch + 1
 
     # ----------------- THE LOOP -----------------
     for epoch in range(start_epoch, config.EPOCHS):
@@ -61,11 +68,11 @@ def main():
         valid_avg_loss = validate.one_epoch(model, val_loader, criterion, device)
 
         #save
-        checkpoint.save(ckpt_path, model, epoch, train_avg_loss, input_size, optimizer)
+        checkpoint.save(ckpt_path, model, epoch, train_avg_loss, input_size, optimizer, scaler_path)
 
         if valid_avg_loss < best_valid_avg_loss:
             best_valid_avg_loss = valid_avg_loss
-            checkpoint.save(best_ckpt_path, model, epoch, valid_avg_loss, input_size, optimizer)
+            checkpoint.save(best_ckpt_path, model, epoch, valid_avg_loss, input_size, optimizer, scaler_path)
 
         #log
         writer.add_scalar("LOSS/TRAIN", train_avg_loss, epoch)
@@ -75,8 +82,9 @@ def main():
     
     writer.close()
 
+
     # ----------------- EVAL -----------------
-    evaluate.test(model, device, test_loader, best_ckpt_path)
+    evaluate.test(model, device, test_loader, criterion, best_ckpt_path)
 
 
 if __name__ == "__main__":
